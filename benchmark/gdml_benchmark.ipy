@@ -1,0 +1,250 @@
+import jax
+from jax import config
+config.update("jax_enable_x64", True)
+import jax.numpy as np
+from jax import jvp, grad
+from jax import random, jit, vmap
+from functools import partial
+import matplotlib.pyplot as plt
+import timeit
+
+
+#=== scalar basekernel
+
+def rbf(x1, x2):
+    return np.exp(-0.5*np.sum((x1 - x2)**2))
+
+def descriptor(r):
+    pair = lambda ri, rj: 1. / np.linalg.norm(ri - rj)
+    idx1, idx2 = np.triu_indices(r.shape[0], k=1)
+    return vmap(lambda i, j: pair(r[i], r[j]))(idx1, idx2)
+
+@jit
+def rbf_with_descriptor(x1, x2):
+    return rbf(descriptor(x1), descriptor(x2))
+
+
+#=== manual explicit derivative construction
+
+def descriptor_and_dense_jacobian(r):
+    """Computes the descriptor and its Jacobian jointly."""
+    n = r.shape[0]
+    idx1, idx2 = np.triu_indices(n, k=1)
+    def jac_ij(i, j):
+        rij = r[i] - r[j]
+        norm_rij = np.linalg.norm(rij)
+        Dij = 1. / norm_rij
+        dDij_dri = -rij / (norm_rij * norm_rij * norm_rij)
+        jac = np.zeros(r.shape)
+        jac = jax.ops.index_update(jac, i, dDij_dri)
+        jac = jax.ops.index_update(jac, j, -dDij_dri)
+        return Dij, jac
+    descr_r, jac_r = vmap(jac_ij)(idx1, idx2)
+    return descr_r, jac_r
+
+def dense_dkernel(x1, x2, return_factors=False):
+    desc_x1, J1 = descriptor_and_dense_jacobian(x1)
+    desc_x2, J2 = descriptor_and_dense_jacobian(x2)
+
+    d = desc_x1 - desc_x2
+    rbf = np.exp(-0.5*np.dot(d, d))
+    H = np.eye(desc_x1.shape[0]) - np.outer(d, d)
+    H = H * rbf
+
+    # reshape jacobians as matrices
+    J1 = J1.reshape(d.shape[0], -1)
+    J2 = J2.reshape(d.shape[0], -1)
+
+    if return_factors:
+        return J1, H, J2
+
+    return J1.T @ H @ J2
+
+@jit
+def kvp_dense(x1, x2, v):
+    """Computes the baseline derivative-kernel-vector-product
+    ( J(x1)^T @ H @ J(x2) ) @ v
+    via dense matrix-matrix multiplication (not recommended!)
+    """
+    JtHJ = dense_dkernel(x1, x2)
+    JtHJv = JtHJ @ v.reshape(-1)
+    return JtHJv.reshape(x1.shape)
+
+@jit
+def kvp_dense_with_factors(x1, x2, v):
+    """Computes the baseline derivative-kernel-vector-product
+    J(x1)^T @ (H @ (J(x2) @ v))
+    via dense matrix-vector multiplications (not recommended!)
+    """
+    J1, H, J2 = dense_dkernel(x1, x2, return_factors=True)
+    JtHJv = J1.T @ (H @ (J2 @ v.reshape(-1)))
+    return JtHJv.reshape(x1.shape)
+
+#=== manual fast derivatives
+
+def jvp_descriptor(r, v):
+    """Computes the inverse pairwise distance descriptor d
+    and its Jacobian-vector-product J(r) @ v
+    """
+    idx1, idx2 = np.triu_indices(r.shape[0], k=1)
+    def dpair(ri, rj, vi, vj):
+        r_ij = ri - rj
+        norm_r_ij = np.linalg.norm(r_ij)
+        d_ij = 1. / norm_r_ij
+        vprime_ij = - (d_ij * d_ij * d_ij) * np.dot(r_ij, vi - vj)
+        return d_ij, vprime_ij
+    d, vprime = vmap(lambda i, j: dpair(r[i], r[j], v[i], v[j]))(idx1, idx2)
+    return d, vprime
+
+def vjp_descriptor(r):
+    """The vector-Jacobian-product J(r)^T @ u of 
+    the inverse pairwise distance descriptor.
+    """
+    n = r.shape[0]
+    idx1, idx2 = np.triu_indices(n, k=1)
+    pw = r[:,None,:] - r[None,:,:]
+    c = np.linalg.norm(pw, axis=-1)
+    desc_r = 1. / c
+    def backward_fn(u):
+        umat = jax.ops.index_update(np.zeros((n,n)), jax.ops.index[idx1, idx2], u)
+        e = -desc_r * desc_r * desc_r
+        f = e * (umat + umat.T)
+        g = jax.ops.index_update(f, np.diag_indices(u.shape[0]), 0.)
+        h = np.einsum('ijk,ij->ik', pw, g, optimize=True)
+        return h
+    return desc_r[idx1, idx2], backward_fn
+
+@jit
+def kvp_manual(x1, x2, v):
+    desc_x1, jac_x1_fn = vjp_descriptor(x1)        
+    desc_x2, Jv = jvp_descriptor(x2, v)
+    tau = desc_x1 - desc_x2
+    k = np.exp(-0.5 * np.sum(tau ** 2))
+    HJv = k * Jv - k * tau * np.dot(tau, Jv)
+    JtHJv = jac_x1_fn(HJv)
+    return JtHJv
+
+#=== ad fast derivatives
+
+@jit
+def kvp_ad(x1, x2, v):
+    kernel_x1 = lambda x2: grad(rbf_with_descriptor)(x1, x2)
+    return jvp(kernel_x1, (x2,), (v,))[1]
+
+#=== benchmark utils
+
+# global variables to use ipython linemagics with
+xs = None
+vs = None
+v = None
+xi = None
+xs10 = None
+vs10 = None
+v10 = None
+predict = None
+dpredict = None
+
+def _bench(n, m):
+    global xs, vs, v, xi
+    global predict, dpredict
+
+    print('n ==', n)
+
+    if n <= 1: # no pairwise distances
+        return float("inf"), float("inf"), float("inf"), float("inf")
+
+    # n_timeit = 10
+
+    shape = (n, 3)
+    key = random.PRNGKey(0)
+    key, subkey1, subkey2, subkey3, subkey4 = random.split(key, 5)
+    xs = random.normal(subkey1, shape=(m, *shape,)) # train set
+    vs = random.normal(subkey2, shape=(m, *shape,)) # derivative coeffs
+    v = random.normal(subkey3, shape=(m,)) # scalar coeffs
+    xi = random.normal(subkey4, shape=shape) # test point
+
+    @partial(jit, static_argnums=(0,))
+    def _predict(k, xi, xs, v):
+        """ compute scalar prediction for a single test point xi """
+        f = lambda xi, xj, vj: vj * k(xi, xj)
+        return np.sum(vmap(f, (None, 0, 0))(xi, xs, v), axis=0)
+    predict = _predict
+
+    @partial(jit, static_argnums=(0,))
+    def _dpredict(k, xi, xs, vs):
+        """ compute derivative prediction for a single test point xi """
+        return np.sum(vmap(k, (None, 0, 0))(xi, xs, vs), axis=0)
+    dpredict = _dpredict
+
+    def timeit_or_inf(kvp):
+        try:
+            # t_kvp = timeit.timeit(lambda: dpredict(kvp, xi, xs, vs).block_until_ready(), number=n_timeit)
+            t_kvp = get_ipython().run_line_magic('timeit', '-o -r 1 dpredict(kvp, xi, xs, vs).block_until_ready()').best
+        except:
+            t_kvp = float("inf")
+        return t_kvp
+
+    def timeit_batched(kvp):
+        global xs10, vs10
+        xs10 = xs[:10]
+        vs10 = vs[:10]
+        # t_kvp = timeit.timeit(lambda: dpredict(kvp, xi, xs10, vs10).block_until_ready(), number=n_timeit)
+        t_kvp = get_ipython().run_line_magic('timeit', '-o -r 1 dpredict(kvp, xi, xs10, vs10).block_until_ready()').best
+        t_kvp *= m / 10
+        return t_kvp
+
+    def timeit_batched_basekernel():
+        global xs10, v10
+        xs10 = xs[:10]
+        v10 = v[:10]
+        # t = timeit.timeit(lambda: predict(rbf_with_descriptor, xi, xs10, v10).block_until_ready(), number=n_timeit)
+        t  = get_ipython().run_line_magic('timeit', '-o -r 1 predict(rbf_with_descriptor, xi, xs10, v10).block_until_ready()').best
+        t *= m / 10
+        return t
+
+    # t_basekernel = timeit.timeit(lambda: predict(rbf_with_descriptor, xi, xs, v).block_until_ready(), number=n_timeit) if n <= 100 else timeit_batched_basekernel()
+    t_basekernel = get_ipython().run_line_magic('timeit', '-o -r 1 predict(rbf_with_descriptor, xi, xs, v).block_until_ready()').best if n <= 100 else timeit_batched_basekernel()
+
+    t_kvp_dense = timeit_or_inf(kvp_dense) if n <= 10 else timeit_batched(kvp_dense) if n <= 100 else float("inf")
+    t_kvp_manual = timeit_or_inf(kvp_manual) if n <= 100 else timeit_batched(kvp_manual)
+    t_kvp_ad = timeit_or_inf(kvp_ad) if n <= 100 else timeit_batched(kvp_ad)
+
+    return t_basekernel, t_kvp_dense, t_kvp_manual, t_kvp_ad
+
+def benchmark(n_range=None, name="benchmark", m=1000):
+    if n_range is None:
+        n_range = np.logspace(0, 3, 4)
+    result = np.array([_bench(int(n), m) for n in n_range])
+    result = np.hstack([n_range[:, None], result])
+    np.save(name, result)
+    return result
+
+def plot_result(result, name="benchmark"):
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    ax.set_ylabel('time (s)')
+    ax.set_xlabel('number of atoms')
+    ax.set_yscale('log')
+    ax.set_xscale('log')
+    plt.grid(True)
+    ax.plot(result[:, 0], result[:, 1], label='basekernel')
+    ax.plot(result[:, 0], result[:, 2], label='dense kvp')
+    ax.plot(result[:, 0], result[:, 3], label='manual kvp')
+    ax.plot(result[:, 0], result[:, 4], label='AD kvp')
+    ax.scatter(result[:, 0], result[:, 1])
+    ax.scatter(result[:, 0], result[:, 2])
+    ax.scatter(result[:, 0], result[:, 3])
+    ax.scatter(result[:, 0], result[:, 4])
+    ax.legend()
+    ax.set_title('prediction time with 1000 training points')
+    fig.savefig(f"{name}.pdf")
+    return fig
+
+
+if __name__ == '__main__':
+    ## example usage
+    # n_range = np.logspace(0, 3, 4)
+    # result = benchmark(n_range, "bench_rbfpdist_hvp_1e0_1e3")
+    # fig = plot_result(result, "bench_rbfpdist_hvp_1e0_1e3")
+    # fig.show()
+    pass

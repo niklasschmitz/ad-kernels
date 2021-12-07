@@ -100,7 +100,7 @@ kernel_kwargs = {"lengthscale": args.lengthscale}
 
 # solve in closed form
 params = solve_closed(basekernel, train_x, train_y,
-                      batch_size=args.batch_size, batch_size2=args.batch_size2
+                      batch_size=args.batch_size, batch_size2=args.batch_size2,
                       reg=args.reg, kernel_kwargs=kernel_kwargs)
 
 # evaluate on training data

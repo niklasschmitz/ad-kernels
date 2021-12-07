@@ -148,12 +148,15 @@ def _solve_closed(train_k, train_y, reg):
 
 
 def solve_closed(basekernel, train_x, train_y, reg=1e-10, batch_size=-1, batch_size2=-1, kernel_kwargs={}):
+    store_on_device = (batch_size == -1)
     train_k = dkernelmatrix(
         basekernel, train_x, train_x, 
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,
-        store_on_device=(batch_size == -1)
+        store_on_device=store_on_device
     )
-    train_y = jax.device_put(train_y, train_k.device())
+    if not store_on_device:
+        train_k = jax.device_get(train_k)
+        train_y = jax.device_get(train_y)
     alpha = _solve_closed(train_k, train_y, reg)
     params = dict(alpha=alpha, kernel_kwargs=kernel_kwargs)
     return params

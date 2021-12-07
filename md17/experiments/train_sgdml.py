@@ -26,8 +26,27 @@ parser.add_argument("--batch_size", type=int, default=-1)
 parser.add_argument("--batch_size2", type=int, default=-1)
 parser.add_argument("--datadir", type=str, default="../data/train")
 parser.add_argument("--loglevel", type=int, default=logging.INFO)
-parser.add_argument("--logfile", type=str, default="logs")
+parser.add_argument("--logfile", type=str, default="")
 args = parser.parse_args()
+
+def config_logger(args):
+    delim = "=============================="
+    filename = args.logfile or f"{args.molecule}_train{args.n_train}_{args.kernel}_l{args.lengthscale}_reg{args.reg}"
+    logging.basicConfig(
+        level=args.loglevel,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(f"{filename}.log"),
+            logging.StreamHandler()
+        ]
+    )
+    logging.info(delim)
+    logging.info(args)
+    logging.info(delim)
+    logging.info(f"logging to {filename}.log")
+    return filename
+
+filename = config_logger(args)
 
 # data loading
 trainset, testset, meta = load_md17(args.molecule, args.n_train, args.n_test, args.datadir)
@@ -84,24 +103,24 @@ params = solve_closed(basekernel, train_x, train_y, reg=args.reg, kernel_kwargs=
 
 # evaluate on training data
 preds = predict_fn(params, train_x)
-print("forces:")
-print("train MSE:", losses.mse(train_y, preds))
-print("train MAE:", losses.mae(train_y, preds))
+logging.info("forces:")
+logging.info(f"train MSE: {losses.mse(train_y, preds)}")
+logging.info(f"train MAE: {losses.mae(train_y, preds)}")
 
 energy_fn = GDMLPredictEnergy(basekernel, train_x, train_e, params)
 preds = energy_fn(train_x)
-print("energies:")
-print("train MSE:", losses.mse(train_e, preds))
-print("train MAE:", losses.mae(train_e, preds))
+logging.info("energies:")
+logging.info(f"train MSE: {losses.mse(train_e, preds)}")
+logging.info(f"train MAE: {losses.mae(train_e, preds)}")
 
 # evaluate on test data
 test_x, test_e, test_y = testset
 preds = predict_fn(params, test_x)
-print("forces:")
-print("test MSE:", losses.mse(test_y, preds))
-print("test MAE:", losses.mae(test_y, preds))
+logging.info("forces:")
+logging.info(f"test MSE: {losses.mse(test_y, preds)}")
+logging.info(f"test MAE: {losses.mae(test_y, preds)}")
 
 preds = energy_fn(test_x)
-print("energies:")
-print("test MSE:", losses.mse(test_e, preds))
-print("test MAE:", losses.mae(test_e, preds))
+logging.info("energies:")
+logging.info(f"test MSE: {losses.mse(test_e, preds)}")
+logging.info(f"test MAE: {losses.mae(test_e, preds)}")

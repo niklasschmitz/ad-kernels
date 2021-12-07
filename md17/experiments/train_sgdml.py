@@ -30,9 +30,7 @@ parser.add_argument("--logfile", type=str, default="logs")
 args = parser.parse_args()
 
 # data loading
-trainset, testset, meta = load_md17(
-    args.molecule, args.n_train, args.n_test, args.datadir
-)
+trainset, testset, meta = load_md17(args.molecule, args.n_train, args.n_test, args.datadir)
 train_x, train_e, train_y = trainset
 shape = meta["shape"]
 z = meta["z"]

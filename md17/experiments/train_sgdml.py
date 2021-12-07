@@ -99,7 +99,9 @@ predict_fn = GDMLPredict(basekernel, train_x)
 kernel_kwargs = {"lengthscale": args.lengthscale}
 
 # solve in closed form
-params = solve_closed(basekernel, train_x, train_y, reg=args.reg, kernel_kwargs=kernel_kwargs)
+params = solve_closed(basekernel, train_x, train_y,
+                      batch_size=args.batch_size, batch_size2=args.batch_size2
+                      reg=args.reg, kernel_kwargs=kernel_kwargs)
 
 # evaluate on training data
 preds = predict_fn(params, train_x)
@@ -107,7 +109,7 @@ logging.info("forces:")
 logging.info(f"train MSE: {losses.mse(train_y, preds)}")
 logging.info(f"train MAE: {losses.mae(train_y, preds)}")
 
-energy_fn = GDMLPredictEnergy(basekernel, train_x, train_e, params)
+energy_fn = GDMLPredictEnergy(basekernel, train_x, train_e, params, args.batch_size)
 preds = energy_fn(train_x)
 logging.info("energies:")
 logging.info(f"train MSE: {losses.mse(train_e, preds)}")

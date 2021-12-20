@@ -2,8 +2,6 @@ import argparse
 import logging
 from jax.config import config
 
-import sys
-sys.path.append("..")
 from gdml_jax.util.datasets import load_md17, get_symmetries
 from gdml_jax.models import GDMLPredict, GDMLPredictEnergy
 from gdml_jax.solve import solve_closed

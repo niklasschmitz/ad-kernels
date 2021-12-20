@@ -12,9 +12,9 @@ Steps:
 spktrain experiment=md17 model/representation=schnet data.molecule=ethanol
 ```
 
-2. (PyTorch) Precompute features and Jacobians for the train and validation set. For this, update the `model_dir` variable in `precompute_jacobians.py` with the path to the pretrained model and then run
+2. (PyTorch) Precompute features and Jacobians for the train and validation set. For this, replace the `MODELDIR` placeholder with the path to the pretrained model and then run
 ```
-python precompute_jacobians.py
+python precompute_jacobians.py --molecule ethanol --modeldir MODELDIR
 ```
 
 3. (JAX) Fit the force field kernel to forces

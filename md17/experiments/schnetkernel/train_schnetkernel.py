@@ -2,60 +2,49 @@ import jax
 import jax.numpy as jnp
 from jax.config import config
 import numpy as np
-import os
-import logging
 from functools import partial
+
+import argparse
+import logging
 
 # enable double precision
 config.update("jax_enable_x64", True)
 
-CPU = jax.devices('cpu')[0]
+parser = argparse.ArgumentParser(description="SchNetKernel force field demo")
+parser.add_argument("--molecule", type=str, default="ethanol")
+parser.add_argument("--n_train", type=int, default=1000)
+parser.add_argument("--name", type=str, default="schnet")
+parser.add_argument("--loglevel", type=int, default=logging.INFO)
+args = parser.parse_args()
 
-REPRESENTATION = os.environ.get("REPRESENTATION", "schnet")
-MOLECULE = os.environ.get("MOLECULE", "ethanol")
-N_TRAIN = int(os.environ.get("N_TRAIN", 10))
-LOGLEVEL = int(os.environ.get("LOGLEVEL", 20))
+CPU = jax.devices('cpu')[0]
 LENGTHSCALES = [4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0]
 REG_RANGE = [1e-14, 1e-12, 1e-10, 1e-8, 1e-6]
 
-# REPRESENTATION = "schnet"
-# REPRESENTATION = "painn"
+trainset = jnp.load(f"precompute/jacobians_{args.name}_{args.molecule}_train.npz")
+testset  = jnp.load(f"precompute/jacobians_{args.name}_{args.molecule}_test.npz")
 
-# MOLECULE = "aspirin"
-# MOLECULE = "benzene"
-# MOLECULE = "ethanol"
-# MOLECULE = "malonaldehyde"
-# MOLECULE = "naphtalene"
-# MOLECULE = "salicylicacid"
-# MOLECULE = "toluene"
-# MOLECULE = "uracil"
+nn_train = jnp.array(trainset['features'])[:args.n_train]
+y_train = jnp.array(trainset['y'])[:args.n_train]
+jacs_train = jnp.array(trainset['jacs'])[:args.n_train]
 
-trainset = jnp.load(f"precompute/jacobians_{REPRESENTATION}_{MOLECULE}_train.npz")
-testset  = jnp.load(f"precompute/jacobians_{REPRESENTATION}_{MOLECULE}_test.npz")
-
-# x_train = jnp.array(trainset['x'])[:N_TRAIN]
-nn_train = jnp.array(trainset['features'])[:N_TRAIN]
-y_train = jnp.array(trainset['y'])[:N_TRAIN]
-jacs_train = jnp.array(trainset['jacs'])[:N_TRAIN]
-
-# x_test = jnp.array(testset['x'])
-y_test = jnp.array(testset['y'])
 nn_test = jnp.array(testset['features'])
+y_test = jnp.array(testset['y'])
 jacs_test = jnp.array(testset['jacs'])
 
 logging.basicConfig(
-    level=LOGLEVEL,
+    level=args.loglevel,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler(f"kernelsearch_{REPRESENTATION}_{MOLECULE}_n{N_TRAIN}.log"),
+        logging.FileHandler(f"kernelsearch_{args.name}_{args.molecule}_n{args.n_train}.log"),
         logging.StreamHandler()
     ],
     force=True
 )
-logging.info(f"representation: {REPRESENTATION}")
-logging.info(f"molecule: {MOLECULE}")
-logging.info(f"n_train: {N_TRAIN}")
-logging.info(f"loglevel: {LOGLEVEL}")
+logging.info(f"representation: {args.name}")
+logging.info(f"molecule: {args.molecule}")
+logging.info(f"n_train: {args.n_train}")
+logging.info(f"loglevel: {args.loglevel}")
 logging.info(f"lengthscales: {LENGTHSCALES}")
 logging.info(f"regularizations: {REG_RANGE}")
 
@@ -184,7 +173,7 @@ def symmetrize(kappa, perms):
         return jnp.sum(lax.map(lambda p: kappa(x1, x2[p], **kwargs), perms)) / len(perms)
     return kappasym
 
-perms = get_symmetries(MOLECULE)
+perms = get_symmetries(args.molecule)
 rbf_sym = symmetrize(rbf, perms)
 
 for kappa in [rbf, rbf_sym]:

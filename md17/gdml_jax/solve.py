@@ -154,9 +154,11 @@ def solve_closed(basekernel, train_x, train_y, reg=1e-10, batch_size=-1, batch_s
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,
         store_on_device=store_on_device
     )
-    if not store_on_device:
+    if store_on_device:
+        alpha = _solve_closed(train_k, train_y, reg)
+    else:
         train_k = jax.device_get(train_k)
         train_y = jax.device_get(train_y)
-    alpha = _solve_closed(train_k, train_y, reg)
+        alpha = jax.jit(_solve_closed, backend="cpu")(train_k, train_y, reg)
     params = dict(alpha=alpha, kernel_kwargs=kernel_kwargs)
     return params

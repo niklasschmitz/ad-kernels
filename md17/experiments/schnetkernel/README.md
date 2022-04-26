@@ -3,7 +3,7 @@
 Prerequisites:
 - JAX
 - PyTorch 
-- schnetpack ([commit 83935fb](https://github.com/atomistic-machine-learning/schnetpack/tree/83935fb))
+- schnetpack ([commit fed6f625721c14e3f72c9147dd86495dbb269b1e](https://github.com/atomistic-machine-learning/schnetpack/tree/fed6f625721c14e3f72c9147dd86495dbb269b1e))
 
 Steps:
 1. (PyTorch) Train a SchNet representation on an MD17 data set. Example:

@@ -6,7 +6,7 @@ from gdml_jax.util.datasets import load_md17, get_symmetries
 from gdml_jax.models import GDMLPredict, GDMLPredictEnergy
 from gdml_jax.solve import solve_closed
 from gdml_jax import losses
-from gdml_jax.kernels import rbf, GDMLKernel, sGDMLKernel, GlobalSymmetryKernel, KernelSum
+from gdml_jax.kernels import rbf, GDMLKernel, sGDMLKernel, GlobalSymmetryKernel, KernelSum, DescriptorKernel
 from matern import matern52
 from fchl import FCHL19Kernel, FCHL19Representation
 
@@ -79,7 +79,9 @@ elif args.kernel == "sGDMLmatern":
     basekernel = sGDMLKernel(shape=shape, kappa=matern52, perms=perms)
 elif args.kernel == "FCHL19":
     basekernel = FCHL19Kernel(z=z)
-elif args.kernel == "sGDMLFCHL19":
+elif args.kernel == "globalFCHL19":
+    basekernel = DescriptorKernel(FCHL19Representation(z), kappa=rbf)
+elif args.kernel == "sFCHL19":
     basekernel = FCHL19GlobalKernelWithSymmetries(z=z, perms=perms)
 elif args.kernel == "SGDMLmaternPlusFCHL19rbf":
     basekernel = SGDMLPlusFCHL19Kernel(shape=shape, z=z, perms=perms, kappa1=matern52, kappa2=rbf)

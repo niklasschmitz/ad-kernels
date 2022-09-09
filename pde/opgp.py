@@ -34,7 +34,7 @@ def make_mvm(k, operators1, operators2, xs1, xs2): # TODO clean up
     def mvm(alphas):
         return {
             key1: sum(_make_mvm(L1, L2, xs1[key1], xs2[key2])(alphas[key2]) for (key2, L2) in operators2.items())
-            for (key1, L1) in operators1.items() # TODO consider jax.tree_map
+            for (key1, L1) in operators1.items()
         }
     return mvm
 

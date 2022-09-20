@@ -3,7 +3,9 @@ Supplementary material for **"Algorithmic Differentiation for Automatized Modell
 
 The preprint is available here: https://arxiv.org/abs/2208.12104
 
-![toc](_figures/graphical_toc.png)
+<div align="middle">
+<img src="_figures/graphical_toc.png" width=50%>
+</div>
 
 ![](_figures/boxology.png)
 

@@ -22,10 +22,12 @@ import jax.numpy as jnp
 from jax import grad, jvp
 from jax import vmap, jit
 from functools import partial
+from plum import dispatch
 
 
+@dispatch
 @partial(jit, static_argnums=(0,))
-def kernel_mvm(basekernel, batch_x1, batch_x2, alpha, kernel_kwargs={}):
+def kernel_mvm(basekernel, batch_x1, batch_x2, alpha, *, kernel_kwargs={}):
     """Efficient derivative-kernelmatrix-vector-multiplication.
 
     outᵢ = ∑ⱼ ∇ₓᵢ k(xᵢ, xⱼ) ∇ₓⱼᵀαⱼ
@@ -61,6 +63,17 @@ def kernel_mvm(basekernel, batch_x1, batch_x2, alpha, kernel_kwargs={}):
         return jnp.sum(prods, axis=0)
 
     return vmap(blockrow_vector_product)(batch_x1)
+
+@dispatch
+def kernel_mvm(basekernel, batch_x1, batch_x2, alpha, batch_size1, batch_size2, kernel_kwargs={}):
+    indices1 = jnp.array(jnp.split(jnp.arange(len(batch_x1)), len(batch_x1) / batch_size1))
+    indices2 = jnp.array(jnp.split(jnp.arange(len(batch_x2)), len(batch_x2) / batch_size2))
+    def f(idx1):
+        def g(idx2):
+            return kernel_mvm(basekernel, batch_x1[idx1], batch_x2[idx2], alpha[idx2], kernel_kwargs=kernel_kwargs)
+        prods = lax.map(g, indices2)
+        return jnp.sum(prods, axis=0)
+    return jnp.concatenate(lax.map(f, indices1))
 
 
 @partial(jit, static_argnums=(0,))

@@ -26,9 +26,11 @@ def _kernelmatrix(xs, xs2, kernel_kwargs={}, basekernel=None):
     k_fn = vmap(vmap(matrixkernel, (None, 0)), (0, None))
     return k_fn(xs, xs2)
 
+
 @dispatch
 def dkernelmatrix(basekernel, xs, **kwargs):
     return dkernelmatrix(basekernel, xs, None, **kwargs)
+
 
 @dispatch
 def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_kwargs={}, flatten=True, store_on_device=True):
@@ -41,7 +43,7 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices = np.split(np.arange(len(xs)), len(xs) / batch_size)
         matrix = jnp.concatenate([
-            jax.device_put(_kernelmatrix(xs[idx], xs2, kernel_kwargs=kernel_kwargs, basekernel=basekernel), device) 
+            jax.device_put(_kernelmatrix(xs[idx], xs2, kernel_kwargs=kernel_kwargs, basekernel=basekernel), device)
             for idx in batch_indices
         ])
     else: # batching along both rows and columns
@@ -52,7 +54,7 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
             jnp.concatenate([
                 jax.device_put(_kernelmatrix(xs[idx], xs2[idx2], kernel_kwargs=kernel_kwargs, basekernel=basekernel), device)
                 for idx2 in batch_indices2
-            ], axis=1) 
+            ], axis=1)
             for idx in batch_indices1
         ])
     if flatten:
@@ -61,29 +63,32 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
 
 
 @dispatch
-def dkernelmatrix(basekernel: KernelSum, xs1, xs2, **kwargs):
-    print("calculating kernelmatrices seperately for", basekernel)
-    return sum(dkernelmatrix(kernel, xs1, xs2, **kwargs) for kernel in basekernel.kernels)
+def dkernelmatrix(basekernel: KernelSum, xs1, xs2, *, verbose=True, **kwargs):
+    if verbose: logging.info(f"[gdml_jax]: calculating kernelmatrices seperately for {basekernel}")
+    return sum(jax.device_get(dkernelmatrix(kernel, xs1, xs2, **kwargs)) for kernel in basekernel.kernels)
 
 
 @partial(jax.jit, static_argnames="descriptor")
-def preaccumulate_descriptors_and_jacobians(descriptor, xs):
-    descriptors = jax.vmap(descriptor)(xs)
-    jacobians = jax.vmap(jax.jacfwd(descriptor))(xs)
+def preaccumulate_descriptors_and_jacobians(descriptor, xs, descriptor_kwargs={}):
+    descriptor_p = partial(descriptor, **descriptor_kwargs)
+    descriptors = jax.vmap(descriptor_p)(xs)
+    jacobians = jax.vmap(jax.jacfwd(descriptor_p))(xs)
     return descriptors, jacobians
 
 
 @dispatch
-def dkernelmatrix(basekernel: DescriptorKernel, xs1, xs2, **kwargs):
-    print("preaccumulating descriptors and jacobians for", basekernel)
+def dkernelmatrix(basekernel: DescriptorKernel, xs1, xs2, *, verbose=True, kernel_kwargs={}, **kwargs):
+    if verbose: logging.info(f"[gdml_jax]: preaccumulating descriptors and jacobians for {basekernel}")
     descriptor = basekernel.descriptor
+    descriptor_kwargs = kernel_kwargs.get("descriptor_kwargs", {})
     kappa = basekernel.kappa
-    phi_xs1, jacs_xs1 = preaccumulate_descriptors_and_jacobians(descriptor, xs1)
+    kappa_kwargs = {key: val for (key, val) in kernel_kwargs.items() if key != "descriptor_kwargs"}
+    phi_xs1, jacs_xs1 = preaccumulate_descriptors_and_jacobians(descriptor, xs1, descriptor_kwargs)
     if xs2 is not None:
-        phi_xs2, jacs_xs2 = preaccumulate_descriptors_and_jacobians(descriptor, xs2)
+        phi_xs2, jacs_xs2 = preaccumulate_descriptors_and_jacobians(descriptor, xs2, descriptor_kwargs)
     else:
         phi_xs2, jacs_xs2 = phi_xs1, jacs_xs1
-    return  dkernelmatrix_preaccumulated_batched(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs_xs2, **kwargs)
+    return dkernelmatrix_preaccumulated_batched(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs_xs2, kernel_kwargs=kappa_kwargs, **kwargs)
 
 
 def dkernelmatrix_preaccumulated_batched(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs_xs2, *, batch_size=-1, batch_size2=-1, store_on_device=True, **kwargs):
@@ -92,23 +97,23 @@ def dkernelmatrix_preaccumulated_batched(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs
     elif batch_size2 == -1: # batching along rows only
         device = phi_xs1.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices = np.split(np.arange(len(phi_xs1)), len(phi_xs1) / batch_size)
-        return np.concatenate([
-            jax.device_put(dkernelmatrix_preaccumulated(kappa, phi_xs1[idx], phi_xs2, jacs_xs1[idx], jacs_xs2, **kwargs), device) 
+        return jnp.concatenate([
+            jax.device_put(dkernelmatrix_preaccumulated(kappa, phi_xs1[idx], phi_xs2, jacs_xs1[idx], jacs_xs2, **kwargs), device)
             for idx in batch_indices
         ])
     else: # batching along both rows and columns
         device = phi_xs1.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices1 = np.split(np.arange(len(phi_xs1)), len(phi_xs1) / batch_size)
         batch_indices2 = np.split(np.arange(len(phi_xs2)), len(phi_xs2) / batch_size2)
-        return np.concatenate([
-            np.concatenate([
-                jax.device_put(dkernelmatrix_preaccumulated(kappa, phi_xs1[idx], phi_xs2[idx2], jacs_xs1[idx], jacs_xs2[idx2], **kwargs), device) 
+        return jnp.concatenate([
+            jnp.concatenate([
+                jax.device_put(dkernelmatrix_preaccumulated(kappa, phi_xs1[idx], phi_xs2[idx2], jacs_xs1[idx], jacs_xs2[idx2], **kwargs), device)
                 for idx2 in batch_indices2
             ], axis=1)
             for idx in batch_indices1
         ])
-        
-        
+
+
 @partial(jax.jit, static_argnames=("kappa", "flatten"))
 def dkernelmatrix_preaccumulated(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs_xs2, *, kernel_kwargs={}, flatten=True):
     # Perf optimization in the case of preaccumulated Jacobians.
@@ -147,12 +152,12 @@ def _solve_closed(train_k, train_y, reg):
     return alpha
 
 
-def solve_closed(basekernel, train_x, train_y, reg=1e-10, batch_size=-1, batch_size2=-1, kernel_kwargs={}):
+def solve_closed(basekernel, train_x, train_y, reg=1e-10, batch_size=-1, batch_size2=-1, kernel_kwargs={}, verbose=True):
     store_on_device = (batch_size == -1)
     train_k = dkernelmatrix(
-        basekernel, train_x, train_x, 
+        basekernel, train_x, train_x,
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,
-        store_on_device=store_on_device
+        store_on_device=store_on_device, verbose=verbose,
     )
     if store_on_device:
         alpha = _solve_closed(train_k, train_y, reg)

@@ -40,7 +40,7 @@ def GDMLPredict(basekernel, train_x, batch_size=-1):
     def predict_fn(params, batch_x):
         alpha = params["alpha"]
         kernel_kwargs = params.get("kernel_kwargs", {})
-        return kernel_mvm(basekernel, batch_x, train_x, alpha, kernel_kwargs)
+        return kernel_mvm(basekernel, batch_x, train_x, alpha, kernel_kwargs=kernel_kwargs)
 
     if batch_size > 0:
 
@@ -66,19 +66,19 @@ def GDMLPredictEnergy(basekernel, train_x, train_e, params, batch_size=-1):
         def batched_integrate(alpha, train_x):
             minibatches = jnp.array(jnp.split(train_x, len(train_x) / batch_size))
             train_e_preds = jnp.vstack(list(map(
-                lambda mb: kernel_mvm_integrate(basekernel, mb, train_x, alpha, kernel_kwargs), 
+                lambda mb: kernel_mvm_integrate(basekernel, mb, train_x, alpha, kernel_kwargs=kernel_kwargs), 
                 minibatches
             )))
             train_e_preds = train_e_preds.reshape(-1)
             return train_e_preds
         train_e_preds = batched_integrate(alpha, train_x)
     else:
-        train_e_preds = kernel_mvm_integrate(basekernel, train_x, train_x, alpha, kernel_kwargs)
+        train_e_preds = kernel_mvm_integrate(basekernel, train_x, train_x, alpha, kernel_kwargs=kernel_kwargs)
     c = jnp.mean(train_e + train_e_preds)
 
     @jit
     def energy_fn(batch_x):
-        integrals = kernel_mvm_integrate(basekernel, batch_x, train_x, alpha, kernel_kwargs)
+        integrals = kernel_mvm_integrate(basekernel, batch_x, train_x, alpha, kernel_kwargs=kernel_kwargs)
         energies = -integrals + c
         return energies
 

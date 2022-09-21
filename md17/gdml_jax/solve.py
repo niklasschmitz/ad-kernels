@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jax.scipy
 from jax import vmap
 import numpy as np
+import logging
 from functools import partial
 from plum import dispatch
 from gdml_jax.kernels.composite import DescriptorKernel, KernelSum

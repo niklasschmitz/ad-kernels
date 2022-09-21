@@ -34,7 +34,8 @@ def dkernelmatrix(basekernel, xs, **kwargs):
 
 
 @dispatch
-def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_kwargs={}, flatten=True, store_on_device=True):
+def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_kwargs={},
+                  flatten=True, store_on_device=True, **unused_kwargs):
     """Constructs an explicit gradient-gradient-kernelmatrix. Used by closed-form solver."""
     if xs2 is None:
         xs2 = xs

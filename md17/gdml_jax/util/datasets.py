@@ -2,6 +2,7 @@ import os
 import urllib.request
 import urllib.parse
 import posixpath
+import logging
 import jax.numpy as jnp
 import numpy as np
 
@@ -28,9 +29,9 @@ def load_md17(molecule, n_train=100, n_test=200, datadir=DEFAULT_DIR, train_idx=
         os.makedirs(datadir)
 
     if not os.path.isfile(filepath):
-        print(f'Downloading \'{molecule}\' MD17 dataset... ', end='', flush=True)
+        logging.info(f"[gdml_jax]: Downloading \'{molecule}\' MD17 dataset...")
         urllib.request.urlretrieve(url, filepath)
-        print('done')
+        logging.info("[gdml_jax]: done")
         
     data = jnp.load(filepath)
     

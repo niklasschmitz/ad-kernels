@@ -1,9 +1,9 @@
+import logging
 import jax
 import jax.numpy as jnp
 import jax.scipy
 from jax import vmap
 import numpy as np
-import logging
 from functools import partial
 from plum import dispatch
 from gdml_jax.kernels.composite import DescriptorKernel, KernelSum
@@ -148,7 +148,7 @@ def dkernelmatrix_preaccumulated(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs_xs2, *,
 def _solve_closed(train_k, train_y, reg):
     train_k = train_k.at[jnp.diag_indices_from(train_k)].add(reg)
     y = train_y.reshape(-1)
-    alpha = jax.scipy.linalg.solve(train_k, y, sym_pos=True)
+    alpha = jax.scipy.linalg.solve(train_k, y, assume_a='pos')
     alpha = alpha.reshape(train_y.shape)
     return alpha
 

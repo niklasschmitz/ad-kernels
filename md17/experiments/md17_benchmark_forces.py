@@ -1,3 +1,8 @@
+import logging
+import argparse
+from functools import partial
+from util import config_logger
+
 import jax
 import jax.numpy as jnp
 from jax.config import config
@@ -10,11 +15,6 @@ from gdml_jax.kernels import GDMLKernel, sGDMLKernel
 from fchl import FCHL19Kernel
 from fchl import FCHL19GlobalKernelWithSymmetries
 from matern import matern52
-
-import logging
-import argparse
-from functools import partial
-from util import config_logger
 
 import time
 

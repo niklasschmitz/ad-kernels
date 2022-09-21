@@ -1,3 +1,6 @@
+import argparse
+import logging
+
 import jax
 import jax.numpy as jnp
 from jax import lax
@@ -7,9 +10,6 @@ from functools import partial
 from gdml_jax.solve import dkernelmatrix_preaccumulated_batched, _solve_closed
 from gdml_jax import losses
 from gdml_jax.util.datasets import get_symmetries
-
-import argparse
-import logging
 
 # enable double precision
 config.update("jax_enable_x64", True)

@@ -37,7 +37,7 @@ The preprint is available here: https://arxiv.org/abs/2208.12104
 Below is an example setup:
 
 ```
-conda create -n ad-kernels python=3.9
+conda create -n ad-kernels python=3.8
 conda activate ad-kernels
 cd md17 && pip install -e .
 ```

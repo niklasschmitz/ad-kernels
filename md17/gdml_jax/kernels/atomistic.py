@@ -62,6 +62,9 @@ def GlobalSymmetryKernel(descriptor, kappa, perms, is_atomwise=False):
         return DescriptorKernel(descriptor, kappasym)
     else:
         def basekernel(x1, x2, **kwargs):
-            d1 = descriptor(x1)
-            return jnp.sum(lax.map(lambda p: kappa(d1, descriptor(x2[p]), **kwargs), perms)) / len(perms)
+            descriptor_kwargs = kwargs.get("descriptor_kwargs", {})
+            kappa_kwargs = {key: val for (key, val) in kwargs.items() if key != "descriptor_kwargs"}
+            descriptor_p = partial(descriptor, **descriptor_kwargs)
+            d1 = descriptor_p(x1)
+            return jnp.sum(lax.map(lambda p: kappa(d1, descriptor_p(x2[p]), **kappa_kwargs), perms)) / len(perms)
         return basekernel

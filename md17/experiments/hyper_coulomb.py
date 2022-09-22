@@ -20,7 +20,7 @@ def print_callback(i, loss, params):
 
 def fit(loss_fn, params, optimizer, steps, cb=print_callback):
 
-    @jax.jit
+    # @jax.jit
     def train_step(params, opt_state):
         loss, grads = jax.value_and_grad(loss_fn)(params)
         updates, opt_state = optimizer.update(grads, opt_state, params)

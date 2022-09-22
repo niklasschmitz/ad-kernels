@@ -36,7 +36,8 @@ def config_logger(args):
         handlers=[
             logging.FileHandler(f"{filename}.log"),
             logging.StreamHandler()
-        ]
+        ],
+        force=True,
     )
     logging.info(delim)
     logging.info(args)

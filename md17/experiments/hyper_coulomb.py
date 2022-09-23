@@ -115,7 +115,7 @@ if __name__=='__main__':
     train_x, train_e, train_y = trainset
     params = solve_closed(basekernel, train_x, train_y, reg=args.reg, kernel_kwargs=kernel_kwargs, 
                           batch_size=args.batch_size, batch_size2=args.batch_size2, verbose=False)
-    force_fn = GDMLPredict(basekernel, train_x)
+    force_fn = GDMLPredict(basekernel, train_x, batch_size=args.batch_size)
 
     # evaluate on training data
     preds_y = force_fn(params, train_x)

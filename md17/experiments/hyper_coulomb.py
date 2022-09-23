@@ -46,6 +46,7 @@ if __name__=='__main__':
 
     parser = argparse.ArgumentParser(description="GDML-JAX MD17 hyper example")
     parser.add_argument("--lengthscale_init", type=float, required=True)
+    parser.add_argument("--power_init", type=float, default=1.0)
     parser.add_argument("--reg", type=float, default=1e-10)
     parser.add_argument("--molecule", type=str, default="ethanol")
     parser.add_argument("--n_train", type=int, default=100)
@@ -96,7 +97,12 @@ if __name__=='__main__':
         return loss_from_kernel(basekernel, params)
 
     # fit hyperparameters
-    initial_params = {"lengthscale": args.lengthscale_init, "descriptor_kwargs": {"power": 1.0}}
+    initial_params = {
+        "lengthscale": args.lengthscale_init, 
+        "descriptor_kwargs": {
+            "power": args.power_init,
+        },
+    }
     optimizer = optax.adam(args.step_size)
     kernel_kwargs = fit(
         loss_fn, 

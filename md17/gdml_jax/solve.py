@@ -154,8 +154,10 @@ def _solve_closed(train_k, train_y, reg):
     return alpha
 
 
-def solve_closed(basekernel, train_x, train_y, reg=1e-10, batch_size=-1, batch_size2=-1, kernel_kwargs={}, verbose=True):
-    store_on_device = (batch_size == -1)
+def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verbose=True,
+                 batch_size=-1, batch_size2=-1, store_on_device=None):
+    if store_on_device is None:
+        store_on_device = (batch_size == -1)
     train_k = dkernelmatrix(
         basekernel, train_x, train_x,
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,

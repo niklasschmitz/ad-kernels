@@ -117,7 +117,8 @@ if __name__=='__main__':
     # fit final model
     train_x, train_e, train_y = trainset
     params = solve_closed(basekernel, train_x, train_y, reg=args.reg, kernel_kwargs=kernel_kwargs, 
-                          batch_size=args.batch_size, batch_size2=args.batch_size2, verbose=False)
+                          batch_size=args.batch_size, batch_size2=args.batch_size2, verbose=False,
+                          solve_on_device=args.solve_on_device)
     force_fn = GDMLPredict(basekernel, train_x, batch_size=args.batch_size)
 
     # evaluate on training data

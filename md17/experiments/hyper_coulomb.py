@@ -17,7 +17,7 @@ config.update("jax_enable_x64", True)
 
 
 def print_callback(i, loss, params):
-    logging.info(f"step={i} loss={loss} {jax.tree_map(lambda p: f'{p:.5f}', params)}")
+    logging.info(f"step={i:4d} loss={loss:.8f} {jax.tree_map(lambda p: f'{p:.5f}', params)}")
 
 def fit(loss_fn, params, optimizer, steps, cb=print_callback):
 

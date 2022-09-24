@@ -55,6 +55,7 @@ if __name__=='__main__':
     parser.add_argument("--validation_split", type=float, default=0.8)
     parser.add_argument("--batch_size", type=int, default=-1)
     parser.add_argument("--batch_size2", type=int, default=-1)
+    parser.add_argument("--store_on_device", type=lambda x: bool(strtobool(x)), nargs='?', const=True)
     parser.add_argument("--solve_on_device", type=lambda x: bool(strtobool(x)), nargs='?', const=True)
     parser.add_argument("--steps", type=int, default=10)
     parser.add_argument("--step_size", type=float, default=1e-2)
@@ -91,7 +92,7 @@ if __name__=='__main__':
     def loss_from_kernel(basekernel, kernel_kwargs, reg=args.reg):
         params = solve_closed(basekernel, train_x, train_y, reg=reg, kernel_kwargs=kernel_kwargs, 
                               batch_size=args.batch_size, batch_size2=args.batch_size2, verbose=False,
-                              solve_on_device=args.solve_on_device)
+                              store_on_device=args.store_on_device, solve_on_device=args.solve_on_device)
         force_fn = GDMLPredict(basekernel, train_x)
         preds_y = force_fn(params, val_x)
         return losses.mae(val_y, preds_y)
@@ -118,7 +119,7 @@ if __name__=='__main__':
     train_x, train_e, train_y = trainset
     params = solve_closed(basekernel, train_x, train_y, reg=args.reg, kernel_kwargs=kernel_kwargs, 
                           batch_size=args.batch_size, batch_size2=args.batch_size2, verbose=False,
-                          solve_on_device=args.solve_on_device)
+                          store_on_device=args.store_on_device, solve_on_device=args.solve_on_device)
     force_fn = GDMLPredict(basekernel, train_x, batch_size=args.batch_size)
 
     # evaluate on training data

@@ -21,7 +21,7 @@ def print_callback(i, loss, params):
 
 def fit(loss_fn, params, optimizer, steps, cb=print_callback):
 
-    # @jax.jit
+    @jax.jit
     def train_step(params, opt_state):
         loss, grads = jax.value_and_grad(loss_fn)(params)
         updates, opt_state = optimizer.update(grads, opt_state, params)
@@ -46,19 +46,19 @@ def powered_coulomb_descriptor(r, power=1.0):
 if __name__=='__main__':
 
     parser = argparse.ArgumentParser(description="GDML-JAX MD17 hyper example")
-    parser.add_argument("--lengthscale_init", type=float, required=True)
-    parser.add_argument("--power_init", type=float, default=1.0)
-    parser.add_argument("--reg", type=float, default=1e-10)
+    parser.add_argument("--lengthscale_init", type=jnp.float64, required=True)
+    parser.add_argument("--power_init", type=jnp.float64, default=jnp.float64(1.0))
+    parser.add_argument("--reg", type=jnp.float64, default=jnp.float64(1e-10))
     parser.add_argument("--molecule", type=str, default="ethanol")
     parser.add_argument("--n_train", type=int, default=100)
     parser.add_argument("--n_test", type=int, default=2000)
-    parser.add_argument("--validation_split", type=float, default=0.8)
+    parser.add_argument("--validation_split", type=jnp.float64, default=jnp.float64(0.8))
     parser.add_argument("--batch_size", type=int, default=-1)
     parser.add_argument("--batch_size2", type=int, default=-1)
     parser.add_argument("--store_on_device", type=lambda x: bool(strtobool(x)), nargs='?', const=True)
     parser.add_argument("--solve_on_device", type=lambda x: bool(strtobool(x)), nargs='?', const=True)
     parser.add_argument("--steps", type=int, default=10)
-    parser.add_argument("--step_size", type=float, default=1e-2)
+    parser.add_argument("--step_size", type=jnp.float64, default=jnp.float64(1e-2))
     parser.add_argument("--datadir", type=str, default="data/train")
     parser.add_argument("--loglevel", type=int, default=logging.INFO)
     parser.add_argument("--logfile", type=str, default="")

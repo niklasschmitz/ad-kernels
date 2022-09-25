@@ -20,8 +20,8 @@ def _flatten(k_nn):
     return k_nn.reshape(a, b)
 
 
-@partial(jax.jit, static_argnames="basekernel")
-def _kernelmatrix(xs, xs2, kernel_kwargs={}, basekernel=None):
+@partial(jax.jit, static_argnums=0)
+def _kernelmatrix(basekernel, xs, xs2, kernel_kwargs={}):
     def matrixkernel(x1, x2):
         return jax.jacfwd(jax.grad(partial(basekernel, **kernel_kwargs)), argnums=1)(x1, x2)
     k_fn = vmap(vmap(matrixkernel, (None, 0)), (0, None))
@@ -37,28 +37,35 @@ def dkernelmatrix(basekernel, xs, **kwargs):
 def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_kwargs={},
                   flatten=True, store_on_device=True, **unused_kwargs):
     """Constructs an explicit gradient-gradient-kernelmatrix. Used by closed-form solver."""
+    _kernelmatrix_checkpointed = jax.checkpoint(_kernelmatrix, static_argnums=0)
     if xs2 is None:
         xs2 = xs
     if batch_size == -1:
-        matrix = _kernelmatrix(xs, xs2, kernel_kwargs=kernel_kwargs, basekernel=basekernel)
+        matrix = _kernelmatrix(basekernel, xs, xs2, kernel_kwargs)
     elif batch_size2 == -1: # batching along rows only
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
-        batch_indices = np.split(np.arange(len(xs)), len(xs) / batch_size)
-        matrix = jnp.concatenate([
-            jax.device_put(_kernelmatrix(xs[idx], xs2, kernel_kwargs=kernel_kwargs, basekernel=basekernel), device)
-            for idx in batch_indices
-        ])
+        batch_indices = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
+        matrix = jax.lax.map(
+            lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
+            batch_indices
+        )
+        matrix = jnp.concatenate(matrix)
     else: # batching along both rows and columns
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
-        batch_indices1 = np.split(np.arange(len(xs)), len(xs) / batch_size)
-        batch_indices2 = np.split(np.arange(len(xs2)), len(xs2) / batch_size2)
-        matrix = jnp.concatenate([
-            jnp.concatenate([
-                jax.device_put(_kernelmatrix(xs[idx], xs2[idx2], kernel_kwargs=kernel_kwargs, basekernel=basekernel), device)
-                for idx2 in batch_indices2
-            ], axis=1)
-            for idx in batch_indices1
-        ])
+        batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
+        batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
+        matrix = jnp.concatenate(
+            jax.lax.map(
+                lambda idx: jnp.concatenate(
+                    jax.lax.map(
+                        lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
+                        batch_indices2
+                    ), 
+                    axis=1
+                ),
+                batch_indices1
+            )
+        )
     if flatten:
         matrix = _flatten(matrix)
     return matrix

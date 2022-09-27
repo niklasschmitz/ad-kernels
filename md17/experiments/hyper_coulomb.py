@@ -109,9 +109,6 @@ if __name__=='__main__':
         },
     }
 
-    print(initial_params)
-    exit()
-
     optimizer = optax.adam(args.step_size)
     kernel_kwargs = fit(
         loss_fn, 

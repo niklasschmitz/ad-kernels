@@ -1,9 +1,9 @@
+import logging
 import jax
 import jax.numpy as jnp
 import jax.scipy
 from jax import vmap
 import numpy as np
-import logging
 from functools import partial
 from plum import dispatch
 from gdml_jax.kernels.composite import DescriptorKernel, KernelSum
@@ -19,9 +19,8 @@ def _flatten(k_nn):
     b = np.prod(shape[n_axes//2:])
     return k_nn.reshape(a, b)
 
-
-@partial(jax.jit, static_argnames="basekernel")
-def _kernelmatrix(xs, xs2, kernel_kwargs={}, basekernel=None):
+@partial(jax.jit, static_argnums=0)
+def _kernelmatrix(basekernel, xs, xs2, kernel_kwargs={}):
     def matrixkernel(x1, x2):
         return jax.jacfwd(jax.grad(partial(basekernel, **kernel_kwargs)), argnums=1)(x1, x2)
     k_fn = vmap(vmap(matrixkernel, (None, 0)), (0, None))
@@ -34,30 +33,37 @@ def dkernelmatrix(basekernel, xs, **kwargs):
 
 
 @dispatch
-def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_kwargs={}, flatten=True, store_on_device=True):
+def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_kwargs={},
+                  flatten=True, store_on_device=True, **unused_kwargs):
     """Constructs an explicit gradient-gradient-kernelmatrix. Used by closed-form solver."""
+    _kernelmatrix_checkpointed = jax.checkpoint(_kernelmatrix, static_argnums=0)
     if xs2 is None:
         xs2 = xs
     if batch_size == -1:
-        matrix = _kernelmatrix(xs, xs2, kernel_kwargs=kernel_kwargs, basekernel=basekernel)
+        matrix = _kernelmatrix(basekernel, xs, xs2, kernel_kwargs)
     elif batch_size2 == -1: # batching along rows only
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
-        batch_indices = np.split(np.arange(len(xs)), len(xs) / batch_size)
-        matrix = jnp.concatenate([
-            jax.device_put(_kernelmatrix(xs[idx], xs2, kernel_kwargs=kernel_kwargs, basekernel=basekernel), device)
-            for idx in batch_indices
-        ])
+        batch_indices = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
+        matrix = jax.lax.map(
+            lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
+            batch_indices
+        )
+        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
     else: # batching along both rows and columns
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
-        batch_indices1 = np.split(np.arange(len(xs)), len(xs) / batch_size)
-        batch_indices2 = np.split(np.arange(len(xs2)), len(xs2) / batch_size2)
-        matrix = jnp.concatenate([
-            jnp.concatenate([
-                jax.device_put(_kernelmatrix(xs[idx], xs2[idx2], kernel_kwargs=kernel_kwargs, basekernel=basekernel), device)
-                for idx2 in batch_indices2
-            ], axis=1)
-            for idx in batch_indices1
-        ])
+        batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
+        batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
+        matrix = jax.lax.map(
+            lambda idx: (
+                jax.lax.map(
+                    lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
+                    batch_indices2
+                )
+            ),
+            batch_indices1
+        )
+        matrix = matrix.swapaxes(1, 2)
+        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
     if flatten:
         matrix = _flatten(matrix)
     return matrix
@@ -148,19 +154,23 @@ def dkernelmatrix_preaccumulated(kappa, phi_xs1, phi_xs2, jacs_xs1, jacs_xs2, *,
 def _solve_closed(train_k, train_y, reg):
     train_k = train_k.at[jnp.diag_indices_from(train_k)].add(reg)
     y = train_y.reshape(-1)
-    alpha = jax.scipy.linalg.solve(train_k, y, sym_pos=True)
+    alpha = jax.scipy.linalg.solve(train_k, y, assume_a='pos')
     alpha = alpha.reshape(train_y.shape)
     return alpha
 
 
-def solve_closed(basekernel, train_x, train_y, reg=1e-10, batch_size=-1, batch_size2=-1, kernel_kwargs={}, verbose=True):
-    store_on_device = (batch_size == -1)
+def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verbose=True,
+                 batch_size=-1, batch_size2=-1, store_on_device=None, solve_on_device=None):
+    if store_on_device is None:
+        store_on_device = (batch_size == -1)
+    if solve_on_device is None:
+        solve_on_device = store_on_device
     train_k = dkernelmatrix(
         basekernel, train_x, train_x,
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,
         store_on_device=store_on_device, verbose=verbose,
     )
-    if store_on_device:
+    if solve_on_device:
         alpha = _solve_closed(train_k, train_y, reg)
     else:
         train_k = jax.device_get(train_k)

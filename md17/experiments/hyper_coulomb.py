@@ -46,7 +46,7 @@ def powered_coulomb_descriptor(r, power=1.0):
 if __name__=='__main__':
 
     parser = argparse.ArgumentParser(description="GDML-JAX MD17 hyper example")
-    parser.add_argument("--lengthscale_init", type=jnp.float64, required=True)
+    parser.add_argument("--lengthscale_init", type=jnp.float64)
     parser.add_argument("--power_init", type=jnp.float64, default=jnp.float64(1.0))
     parser.add_argument("--reg", type=jnp.float64, default=jnp.float64(1e-10))
     parser.add_argument("--molecule", type=str, default="ethanol")
@@ -82,6 +82,7 @@ if __name__=='__main__':
     # data loading
     trainset, testset, meta = load_md17(args.molecule, args.n_train, args.n_test, args.datadir)
     train_x, train_e, train_y = trainset
+    n_atoms, _ = meta["shape"]
 
     # split train data into train and validation part
     split = int(np.floor(args.validation_split * args.n_train))
@@ -102,11 +103,15 @@ if __name__=='__main__':
 
     # fit hyperparameters
     initial_params = {
-        "lengthscale": args.lengthscale_init, 
+        "lengthscale": args.lengthscale_init or jnp.float64(n_atoms), 
         "descriptor_kwargs": {
             "power": args.power_init,
         },
     }
+
+    print(initial_params)
+    exit()
+
     optimizer = optax.adam(args.step_size)
     kernel_kwargs = fit(
         loss_fn, 

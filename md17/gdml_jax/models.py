@@ -10,7 +10,9 @@ not part of this module.
 For a full example see `examples/ethanol_example.py`.
 """
 
+import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import jit
 from gdml_jax.kernel_mvm import kernel_mvm, kernel_mvm_integrate
 
@@ -44,10 +46,11 @@ def GDMLPredict(basekernel, train_x, batch_size=-1):
 
     if batch_size > 0:
 
+        @jit
         def batched_predict_fn(params, batch_x):
             """Computes prediction serially in minibatches to save memory"""
-            minibatches = jnp.array(jnp.split(batch_x, len(batch_x) / batch_size))
-            preds = jnp.vstack(list(map(lambda mb: predict_fn(params, mb), minibatches)))
+            batch_indices = np.array(np.split(np.arange(len(batch_x)), len(batch_x) / batch_size))
+            preds = jax.lax.map(lambda mb: predict_fn(params, batch_x[mb]), batch_indices)
             preds = preds.reshape(batch_x.shape)
             return preds
 
@@ -63,12 +66,13 @@ def GDMLPredictEnergy(basekernel, train_x, train_e, params, batch_size=-1):
     # calculate integration constant c
     alpha = params["alpha"]
     if batch_size > 0:
+        @jit
         def batched_integrate(alpha, train_x):
-            minibatches = jnp.array(jnp.split(train_x, len(train_x) / batch_size))
-            train_e_preds = jnp.vstack(list(map(
-                lambda mb: kernel_mvm_integrate(basekernel, mb, train_x, alpha, kernel_kwargs=kernel_kwargs), 
-                minibatches
-            )))
+            batch_indices = np.array(np.split(np.arange(len(train_x)), len(train_x) / batch_size))
+            train_e_preds = jax.lax.map(
+                lambda mb: kernel_mvm_integrate(basekernel, train_x[mb], train_x, alpha, kernel_kwargs=kernel_kwargs), 
+                batch_indices
+            )
             train_e_preds = train_e_preds.reshape(-1)
             return train_e_preds
         train_e_preds = batched_integrate(alpha, train_x)
@@ -84,10 +88,11 @@ def GDMLPredictEnergy(basekernel, train_x, train_e, params, batch_size=-1):
 
     if batch_size > 0:
 
+        @jit
         def batched_energy_fn(batch_x):
             """Computes prediction serially in minibatches to save memory"""
-            minibatches = jnp.array(jnp.split(batch_x, len(batch_x) / batch_size))
-            preds = jnp.vstack(list(map(lambda mb: energy_fn(mb), minibatches)))
+            batch_indices = np.array(np.split(np.arange(len(batch_x)), len(batch_x) / batch_size))
+            preds = jax.lax.map(lambda mb: energy_fn(batch_x[mb]), batch_indices)
             preds = preds.reshape(-1)
             return preds
 

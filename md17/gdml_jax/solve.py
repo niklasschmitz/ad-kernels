@@ -19,7 +19,6 @@ def _flatten(k_nn):
     b = np.prod(shape[n_axes//2:])
     return k_nn.reshape(a, b)
 
-
 @partial(jax.jit, static_argnums=0)
 def _kernelmatrix(basekernel, xs, xs2, kernel_kwargs={}):
     def matrixkernel(x1, x2):
@@ -49,23 +48,22 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
             lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
             batch_indices
         )
-        matrix = jnp.concatenate(matrix)
+        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
     else: # batching along both rows and columns
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
         batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
-        matrix = jnp.concatenate(
-            jax.lax.map(
-                lambda idx: jnp.concatenate(
-                    jax.lax.map(
-                        lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
-                        batch_indices2
-                    ), 
-                    axis=1
-                ),
-                batch_indices1
-            )
+        matrix = jax.lax.map(
+            lambda idx: (
+                jax.lax.map(
+                    lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
+                    batch_indices2
+                )
+            ),
+            batch_indices1
         )
+        matrix = matrix.swapaxes(1, 2)
+        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
     if flatten:
         matrix = _flatten(matrix)
     return matrix

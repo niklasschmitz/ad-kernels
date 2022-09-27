@@ -173,7 +173,7 @@ def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verb
         store_on_device=store_on_device, verbose=verbose,
     )
     if solve_on_device:
-        alpha = _solve_closed(train_k, train_y, reg)
+        alpha = jax.jit(_solve_closed, donate_argnums=0)(train_k, train_y, reg)
     else:
         train_k = jax.device_get(train_k)
         train_y = jax.device_get(train_y)

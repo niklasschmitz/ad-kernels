@@ -9,6 +9,29 @@ The preprint is available here: https://arxiv.org/abs/2208.12104
 
 ![](_figures/boxology.png)
 
+## Speedups
+
+Even on the small molecules of the [MD17 data set](http://www.sgdml.org/#datasets), we observe practical relative **speedups up to 50x** for force prediction timings using our efficient higher-order AD contraction approach over naive dense higher-order AD:
+
+|               | Ethanol (N=9) |             |             | Aspirin (N=21) |             |            |
+|---------------|---------------|-------------|-------------|----------------|-------------|------------|
+|               | dense         | contraction | **speedup** | dense          | contraction | **speedup**|
+| sGDML         | 00.0780       | 0.0018      | **43.3x**   | 000.2832       | 00.0087     | **x32.5**  |
+| FCHL19GPR     | 57.9439       | 0.9815      | **59.0x**   | 414.0216       | 10.1438     | **x40.8**  |
+| sGDML[RBF]    | 00.0800       | 0.0015      | **53.3x**   | 000.2811       | 00.0074     | **x37.9**  |
+| global-FCHL19 | 57.5194       | 0.9653      | **59.5x**   | 458.5465       | 10.0728     | **x45.5**  |
+| sFCHL19       | 60.3951       | 1.0704      | **56.4x**   | 419.3778       | 10.3336     | **x40.5**  |
+
+> Benchmarked force prediction times (s) for different kernels. Each model was
+> trained with 1000 training points, and evaluated for 10 points at the same time. All
+> timings are averaged over 10 runs (excluding an initial run for just-in-time compilation). Our approach (contraction) yields consistent speedups by a up to two orders
+> of magnitude over the direct (dense) implementation of the constrained models. All
+> measurements are done on a single Nvidia Titan RTX 24 GB GPU.
+
+See our [preprint](https://arxiv.org/abs/2208.12104) for details of
+where such speedups come from when considering algorithmic choices
+of higher-order AD and operator-transformed Gaussian processes.
+
 ## Content
 
 1. [md17/](md17/)

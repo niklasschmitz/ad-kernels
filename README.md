@@ -18,6 +18,8 @@ The preprint is available here: https://arxiv.org/abs/2208.12104
       - code for fitting different models to MD17 forces
     - [experiments/schnetkernel](md17/experiments/schnetkernel/)
       - utils for schnetpack interop
+    - [hyper_coulomb.py](md17/experiments/hyper_coulomb.py)
+      - example on efficiently optimizing kernel hyperparameters by another outer level of AD
     - [benchmark_forces.py](md17/experiments/md17_benchmark_forces.py)
       - benchmark for dense instantiation vs fast operator kernel contraction
 2. [pde/](pde/) more general differential operators (gradients, Hessians, VJP, ...)

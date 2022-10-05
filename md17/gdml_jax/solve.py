@@ -180,6 +180,6 @@ def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verb
     else:
         train_k = jax.device_get(train_k)
         train_y = jax.device_get(train_y)
-        alpha = jax.jit(_solve_closed, backend="cpu")(train_k, train_y, reg)
+        alpha = _solve_closed(train_k, train_y, reg)
     params = dict(alpha=alpha, kernel_kwargs=kernel_kwargs)
     return params

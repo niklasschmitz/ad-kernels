@@ -50,6 +50,7 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
             batch_indices
         )
         matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
+        assert matrix.device() == device
     else: # batching along both rows and columns
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
@@ -67,6 +68,7 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
         )
         matrix = matrix.swapaxes(1, 2)
         matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
+        assert matrix.device() == device
     if flatten:
         matrix = _flatten(matrix)
     return matrix

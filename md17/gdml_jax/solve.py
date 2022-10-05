@@ -44,6 +44,7 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
     elif batch_size2 == -1: # batching along rows only
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
+        batch_indices = jax.device_put(batch_indices, device)
         matrix = jax.lax.map(
             lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
             batch_indices
@@ -53,6 +54,8 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
         device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
         batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
+        batch_indices1 = jax.device_put(batch_indices1, device)
+        batch_indices2 = jax.device_put(batch_indices2, device)
         matrix = jax.lax.map(
             lambda idx: (
                 jax.lax.map(

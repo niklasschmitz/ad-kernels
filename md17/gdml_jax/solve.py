@@ -42,15 +42,22 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
     if batch_size == -1:
         matrix = _kernelmatrix(basekernel, xs, xs2, kernel_kwargs)
     elif batch_size2 == -1: # batching along rows only
-        device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
-        batch_indices = jax.device_put(batch_indices, device)
-        matrix = jax.lax.map(
-            lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
-            batch_indices
-        )
-        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
-        assert matrix.device() == device
+        if store_on_device:
+            device = xs.device()
+            batch_indices = jax.device_put(batch_indices, device)
+            matrix = jax.lax.map(
+                lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
+                batch_indices
+            )
+            matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
+            assert matrix.device() == device
+        else:
+            device = jax.devices('cpu')[0]
+            matrix = jnp.concatenate([
+                jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device)
+                for idx in batch_indices
+            ])
     else: # batching along both rows and columns
         batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
         batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
@@ -67,6 +74,9 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
                 ),
                 batch_indices1
             )
+            matrix = matrix.swapaxes(1, 2)
+            matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
+            assert matrix.device() == device
         else:
             device = jax.devices('cpu')[0]
             matrix = jnp.concatenate([
@@ -76,11 +86,6 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
                 ], axis=1)
                 for idx in batch_indices1
             ])
-            print("matrix shape:", matrix.shape)
-            print("matrix device:", matrix.device())
-        matrix = matrix.swapaxes(1, 2)
-        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
-        assert matrix.device() == device
     if flatten:
         matrix = _flatten(matrix)
     return matrix

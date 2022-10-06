@@ -52,20 +52,32 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
         matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
         assert matrix.device() == device
     else: # batching along both rows and columns
-        device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
         batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
-        batch_indices1 = jax.device_put(batch_indices1, device)
-        batch_indices2 = jax.device_put(batch_indices2, device)
-        matrix = jax.lax.map(
-            lambda idx: (
-                jax.lax.map(
-                    lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
-                    batch_indices2
-                )
-            ),
-            batch_indices1
-        )
+        if store_on_device:
+            device = xs.device()
+            batch_indices1 = jax.device_put(batch_indices1, device)
+            batch_indices2 = jax.device_put(batch_indices2, device)
+            matrix = jax.lax.map(
+                lambda idx: (
+                    jax.lax.map(
+                        lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
+                        batch_indices2
+                    )
+                ),
+                batch_indices1
+            )
+        else:
+            device = jax.devices('cpu')[0]
+            matrix = jnp.concatenate([
+                jnp.concatenate([
+                    jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device)
+                    for idx2 in batch_indices2
+                ], axis=1)
+                for idx in batch_indices1
+            ])
+            print("matrix shape:", matrix.shape)
+            print("matrix device:", matrix.device())
         matrix = matrix.swapaxes(1, 2)
         matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
         assert matrix.device() == device

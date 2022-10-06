@@ -198,6 +198,6 @@ def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verb
         train_y = jax.device_put(train_y, cpu_device)
         reg = jax.device_put(reg, cpu_device)
     alpha = _solve_closed(train_k, train_y, reg)
-    alpha = jax.device_put(alpha, xs.device())
+    alpha = jax.device_put(alpha, train_x.device())
     params = dict(alpha=alpha, kernel_kwargs=kernel_kwargs)
     return params

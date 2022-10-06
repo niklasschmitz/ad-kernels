@@ -192,11 +192,11 @@ def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verb
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,
         store_on_device=store_on_device, verbose=verbose,
     )
-    if solve_on_device:
-        alpha = _solve_closed(train_k, train_y, reg)
-    else:
-        train_k = jax.device_get(train_k)
-        train_y = jax.device_get(train_y)
-        alpha = _solve_closed(train_k, train_y, reg)
+    if not solve_on_device:
+        cpu_device = jax.devices("cpu")[0]
+        train_k = jax.device_put(train_k, cpu_device)
+        train_y = jax.device_put(train_y, cpu_device)
+        reg = jax.device_put(reg, cpu_device)
+    alpha = _solve_closed(train_k, train_y, reg)
     params = dict(alpha=alpha, kernel_kwargs=kernel_kwargs)
     return params

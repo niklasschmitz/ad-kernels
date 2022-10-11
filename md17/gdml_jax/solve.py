@@ -42,33 +42,48 @@ def dkernelmatrix(basekernel, xs, xs2, *, batch_size=-1, batch_size2=-1, kernel_
     if batch_size == -1:
         matrix = _kernelmatrix(basekernel, xs, xs2, kernel_kwargs)
     elif batch_size2 == -1: # batching along rows only
-        device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
-        batch_indices = jax.device_put(batch_indices, device)
-        matrix = jax.lax.map(
-            lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
-            batch_indices
-        )
-        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
-        assert matrix.device() == device
+        if store_on_device:
+            device = xs.device()
+            batch_indices = jax.device_put(batch_indices, device)
+            matrix = jax.lax.map(
+                lambda idx: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device),
+                batch_indices
+            )
+            matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], *matrix.shape[2:])
+        else:
+            device = jax.devices('cpu')[0]
+            matrix = jnp.concatenate([
+                jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2, kernel_kwargs), device)
+                for idx in batch_indices
+            ])
     else: # batching along both rows and columns
-        device = xs.device() if store_on_device else jax.devices('cpu')[0]
         batch_indices1 = np.array(np.split(np.arange(len(xs)), len(xs) / batch_size))
         batch_indices2 = np.array(np.split(np.arange(len(xs2)), len(xs2) / batch_size2))
-        batch_indices1 = jax.device_put(batch_indices1, device)
-        batch_indices2 = jax.device_put(batch_indices2, device)
-        matrix = jax.lax.map(
-            lambda idx: (
-                jax.lax.map(
-                    lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
-                    batch_indices2
-                )
-            ),
-            batch_indices1
-        )
-        matrix = matrix.swapaxes(1, 2)
-        matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
-        assert matrix.device() == device
+        if store_on_device:
+            device = xs.device()
+            batch_indices1 = jax.device_put(batch_indices1, device)
+            batch_indices2 = jax.device_put(batch_indices2, device)
+            matrix = jax.lax.map(
+                lambda idx: (
+                    jax.lax.map(
+                        lambda idx2: jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device),
+                        batch_indices2
+                    )
+                ),
+                batch_indices1
+            )
+            matrix = matrix.swapaxes(1, 2)
+            matrix = matrix.reshape(matrix.shape[0]*matrix.shape[1], matrix.shape[2]*matrix.shape[3], *matrix.shape[4:])
+        else:
+            device = jax.devices('cpu')[0]
+            matrix = jnp.concatenate([
+                jnp.concatenate([
+                    jax.device_put(_kernelmatrix_checkpointed(basekernel, xs[idx], xs2[idx2], kernel_kwargs), device)
+                    for idx2 in batch_indices2
+                ], axis=1)
+                for idx in batch_indices1
+            ])
     if flatten:
         matrix = _flatten(matrix)
     return matrix
@@ -175,11 +190,12 @@ def solve_closed(basekernel, train_x, train_y, reg=1e-10, kernel_kwargs={}, verb
         batch_size=batch_size, batch_size2=batch_size2, kernel_kwargs=kernel_kwargs,
         store_on_device=store_on_device, verbose=verbose,
     )
-    if solve_on_device:
-        alpha = _solve_closed(train_k, train_y, reg)
-    else:
-        train_k = jax.device_get(train_k)
-        train_y = jax.device_get(train_y)
-        alpha = _solve_closed(train_k, train_y, reg)
+    if not solve_on_device:
+        cpu_device = jax.devices("cpu")[0]
+        train_k = jax.device_put(train_k, cpu_device)
+        train_y = jax.device_put(train_y, cpu_device)
+        reg = jax.device_put(reg, cpu_device)
+    alpha = _solve_closed(train_k, train_y, reg)
+    alpha = jax.device_put(alpha, train_x.device())
     params = dict(alpha=alpha, kernel_kwargs=kernel_kwargs)
     return params

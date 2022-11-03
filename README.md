@@ -1,7 +1,11 @@
 # ad-kernels
-Supplementary material for **"Algorithmic Differentiation for Automatized Modelling of Machine Learned Force Fields"** by Niklas Frederik Schmitz, Klaus-Robert Müller and Stefan Chmiela.
 
-The preprint is available here: https://arxiv.org/abs/2208.12104
+This repository contains the reference implementation of the article:
+
+> __Algorithmic Differentiation for Automatized Modelling of Machine Learned Force Fields__  
+> Niklas Frederik Schmitz, Klaus-Robert Müller, Stefan Chmiela  
+> _The Journal of Physical Chemistry Letters_ **2022** _13_ (43), 10183-10189   
+> [Paper (open access)](https://pubs.acs.org/doi/10.1021/acs.jpclett.2c02632)&nbsp;/ [ArXiv](https://arxiv.org/abs/2208.12104) &nbsp;/ [BibTeX](https://github.com/niklasschmitz/ad-kernels#citation)
 
 <div align="middle">
 <img src="_figures/graphical_toc.png" width=50%>
@@ -28,7 +32,7 @@ Even on the small molecules of the [MD17 data set](http://www.sgdml.org/#dataset
 > of magnitude over the direct (dense) implementation of the constrained models. All
 > measurements are done on a single Nvidia Titan RTX 24 GB GPU.
 
-See our [preprint](https://arxiv.org/abs/2208.12104) for details of
+See our [article](https://arxiv.org/abs/2208.12104) for details of
 where such speedups come from when considering algorithmic choices
 of higher-order AD and operator-transformed Gaussian processes.
 
@@ -70,14 +74,16 @@ cd md17 && pip install -e .
 ## Citation
 
 ```
-@misc{https://doi.org/10.48550/arxiv.2208.12104,
-  author = {Schmitz, Niklas Frederik and Müller, Klaus-Robert and Chmiela, Stefan},
-  title = {Algorithmic Differentiation for Automatized Modelling of Machine Learned Force Fields},
-  publisher = {arXiv},
-  year = {2022},
-  doi = {10.48550/ARXIV.2208.12104},
-  url = {https://arxiv.org/abs/2208.12104},
-  copyright = {arXiv.org perpetual, non-exclusive license}
+@article{schmitz2022,
+	title        = {Algorithmic Differentiation for Automated Modeling of Machine Learned Force Fields},
+	author       = {Schmitz, Niklas Frederik and M\"uller, Klaus-Robert and Chmiela, Stefan},
+	year         = 2022,
+	journal      = {The Journal of Physical Chemistry Letters},
+	volume       = 13,
+	number       = 43,
+	pages        = {10183--10189},
+	doi          = {10.1021/acs.jpclett.2c02632},
+	url          = {https://doi.org/10.1021/acs.jpclett.2c02632},
+	eprint       = {https://doi.org/10.1021/acs.jpclett.2c02632}
 }
-
 ```

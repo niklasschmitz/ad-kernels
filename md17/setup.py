@@ -6,7 +6,7 @@ INSTALL_REQUIRES = [
     'jaxlib>=0.1.61',
     'jax-md>=0.1.12',
     'scikit-learn>=0.24.2',
-    'plum-dispatch>=1.5.6'
+    'plum-dispatch==1.5.6',
 ]
 
 setuptools.setup(

@@ -9,14 +9,13 @@ import numpy as np
 
 DEFAULT_DIR = '/tmp/gdml_jax/data/train'
 MD17_URLS = {
-    "ethanol": 'http://quantum-machine.org/gdml/data/npz/ethanol_dft.npz',
-    "aspirin": 'http://quantum-machine.org/gdml/data/npz/aspirin_dft.npz',
-    "benzene": 'http://quantum-machine.org/gdml/data/npz/benzene_old_dft.npz',
-    "uracil": 'http://quantum-machine.org/gdml/data/npz/uracil_dft.npz',
-    "naphtalene": 'http://quantum-machine.org/gdml/data/npz/naphthalene_dft.npz',
-    "salicylicacid": 'http://quantum-machine.org/gdml/data/npz/salicylic_dft.npz',
-    "malonaldehyde": 'http://quantum-machine.org/gdml/data/npz/malonaldehyde_dft.npz',
-    "toluene": "http://quantum-machine.org/gdml/data/npz/toluene_dft.npz"
+    "ethanol": 'http://www.quantum-machine.org/gdml/data/npz/md17_ethanol.npz',
+    "aspirin": 'http://www.quantum-machine.org/gdml/data/npz/md17_aspirin.npz',
+    "uracil": 'http://www.quantum-machine.org/gdml/data/npz/md17_uracil.npz',
+    "naphtalene": 'http://www.quantum-machine.org/gdml/data/npz/md17_naphthalene.npz',
+    "salicylicacid": 'http://www.quantum-machine.org/gdml/data/npz/md17_salicylic.npz',
+    "malonaldehyde": 'http://www.quantum-machine.org/gdml/data/npz/md17_malonaldehyde.npz',
+    "toluene": 'http://www.quantum-machine.org/gdml/data/npz/md17_toluene.npz',
 }
 
 def load_md17(molecule, n_train=100, n_test=200, datadir=DEFAULT_DIR, train_idx=None, test_idx=None):
